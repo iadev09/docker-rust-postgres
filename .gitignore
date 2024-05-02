@@ -1,5 +1,7 @@
-target
+/.vscode/
+/.idea/
+/target/
+/db/
+/.keys/
+.env
 compose.yaml
-/db
-/.env
-/.vscode
