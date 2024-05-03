@@ -18,3 +18,4 @@ tokio-pg-mapper = { version = "0.2.0", features = ["tokio-pg-mapper-derive", "de
 tokio-pg-mapper-derive = "0.2.0"
 tokio-postgres-migration = "^0.1"
 derive_more = "0.99.17"
+dotenv = "0.15.0"

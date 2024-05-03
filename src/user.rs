@@ -31,18 +31,13 @@ impl User {
         Ok(rows.into_iter().map(User::from).collect())
     }
 
-    pub async fn create<C: GenericClient>(client: &C, payload: Json<User>) -> Result<Vec<User>, Error> {
+    pub async fn create<C: GenericClient>(client: &C, user: &Json<User>) -> Result<User, Error> {
         let _stmt = include_str!("../queries/user_create.sql");
         let _stmt = _stmt.replace("$table_fields", &User::sql_table_fields());
         let stmt = client.prepare(&_stmt).await?;
 
+        let rows = client.query(&stmt, &[&user.login]).await?;
 
-        let rows = client
-            .query(&stmt, &[
-                &payload.login,
-            ])
-            .await?;
-
-        Ok(rows.into_iter().map(User::from).collect())
+        Ok(rows.into_iter().map(User::from).next().unwrap())
     }
 }

@@ -1,15 +1,18 @@
-use actix_web::{get,post, web, App,HttpResponse, HttpServer};
-use deadpool_postgres::{ Pool};
+use actix_web::{get, post, web, App, HttpResponse, HttpServer};
+use deadpool_postgres::{Pool};
 
 use crate::user::User;
 
 mod postgres;
 mod user;
 
+extern crate dotenv;
+
+use dotenv::dotenv;
+
 
 #[get("/users")]
 async fn user_list(pool: web::Data<Pool>) -> HttpResponse {
-
     let client = match pool.get().await {
         Ok(client) => client,
         Err(err) => {
@@ -32,7 +35,6 @@ pub async fn user_create(
     user: web::Json<User>,
     pool: web::Data<Pool>,
 ) -> HttpResponse {
-
     let client = match pool.get().await {
         Ok(client) => client,
         Err(err) => {
@@ -41,15 +43,30 @@ pub async fn user_create(
         }
     };
 
-    match user::User::create(&**client,user).await {
-        Ok(list) => HttpResponse::Ok().json(list),
+    match user::User::create(&**client, &user).await {
+        Ok(created) => HttpResponse::Ok().json(created),
         Err(err) => {
             log::debug!("unable to create user: {:?}", err);
             return HttpResponse::InternalServerError().json("unable to create user");
         }
     }
-
 }
+
+macro_rules! dbg {
+    ($($x:tt)*) => {
+        {
+            #[cfg(debug_assertions)]
+            {
+                std::dbg!($($x)*)
+            }
+            #[cfg(not(debug_assertions))]
+            {
+                ($($x)*)
+            }
+        }
+    }
+}
+
 
 fn address() -> String {
     std::env::var("ADDRESS").unwrap_or_else(|_| "127.0.0.1:8000".into())
@@ -59,17 +76,26 @@ fn address() -> String {
 async fn main() -> std::io::Result<()> {
     env_logger::init();
 
-    let pg_pool = postgres::create_pool();
-    postgres::migrate_up(&pg_pool).await;
+    dotenv().ok();
+
+    dbg!(".env loaded");
 
     let address = address();
+
+    let pg_pool = postgres::create_pool();
+
+    dbg!("pool created");
+
+    postgres::migrate_up(&pg_pool).await;
+
+    dbg!("db migrated");
+
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(pg_pool.clone()))
             .service(user_list)
             .service(user_create)
-    })
-    .bind(&address)?
-    .run()
-    .await
+    }).bind(&address)?
+        .run()
+        .await
 }

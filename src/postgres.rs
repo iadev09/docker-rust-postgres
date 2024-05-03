@@ -2,6 +2,7 @@ use deadpool_postgres::{Config, Pool};
 use tokio_postgres::NoTls;
 use tokio_postgres_migration::Migration;
 
+
 const SCRIPTS_UP: [(&str, &str); 2] = [
     (
         "0001_create-users",
