@@ -1,14 +1,14 @@
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
-use deadpool_postgres::{Pool};
-
+use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
 use crate::user::User;
 
-mod postgres;
+mod migrate;
 mod user;
 
 extern crate dotenv;
 
 use dotenv::dotenv;
+use tokio_postgres::NoTls;
 
 
 #[get("/users")]
@@ -72,6 +72,31 @@ fn address() -> String {
     std::env::var("ADDRESS").unwrap_or_else(|_| "127.0.0.1:8000".into())
 }
 
+
+fn db_config() -> Config {
+    let mut cfg = Config::new();
+
+    if let Ok(host) = std::env::var("PG_HOST") {
+        cfg.host = Some(host);
+    }
+    if let Ok(dbname) = std::env::var("PG_DBNAME") {
+        cfg.dbname = Some(dbname);
+    }
+    if let Ok(user) = std::env::var("PG_USER") {
+        cfg.user = Some(user);
+    }
+    if let Ok(password) = std::env::var("PG_PASSWORD") {
+        cfg.password = Some(password);
+    }
+
+    cfg.manager = Some(ManagerConfig {
+        recycling_method: RecyclingMethod::Fast,
+    });
+
+    cfg
+}
+
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
@@ -82,17 +107,19 @@ async fn main() -> std::io::Result<()> {
 
     let address = address();
 
-    let pg_pool = postgres::create_pool();
+    let pool = db_config()
+        .create_pool(Some(Runtime::Tokio1), NoTls)
+        .unwrap();
 
     dbg!("pool created");
 
-    postgres::migrate_up(&pg_pool).await;
+    migrate::up(&pool).await;
 
     dbg!("db migrated");
 
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(pg_pool.clone()))
+            .app_data(web::Data::new(pool.clone()))
             .service(user_list)
             .service(user_create)
     }).bind(&address)?
